@@ -1,0 +1,64 @@
+
+name: MURZZ Bootstrap Android Source
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract-source:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Android source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP_FILE="MURZZ_CHANNEL_DATABASE_ANDROID_ALPHA2_BUILD2.zip"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP source tidak ditemukan: $ZIP_FILE"
+            echo "File ZIP yang tersedia:"
+            find . -maxdepth 2 -type f -name '*.zip'
+            exit 1
+          fi
+
+          mkdir -p /tmp/murzz-source
+          unzip -oq "$ZIP_FILE" -d /tmp/murzz-source
+
+          SOURCE_DIR="$(find /tmp/murzz-source -type f -name 'settings.gradle.kts' -print -quit | xargs -r dirname)"
+
+          if [ -z "$SOURCE_DIR" ] || [ ! -f "$SOURCE_DIR/app/build.gradle.kts" ]; then
+            echo "ERROR: Struktur source Android tidak ditemukan di dalam ZIP."
+            find /tmp/murzz-source -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+
+          cp -a "$SOURCE_DIR"/. .
+
+          echo "Source Android berhasil diekstrak."
+          ls -la
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+
+      - name: Commit extracted source
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git diff --cached --quiet && {
+            echo "Tidak ada perubahan source untuk di-commit."
+            exit 0
+          }
+
+          git commit -m "Extract Android Alpha 2 source"
+          git push
